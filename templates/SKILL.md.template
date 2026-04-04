@@ -1,0 +1,16 @@
+---
+name: qruiq-CHANGEME
+description: |
+  Brief description of what this skill does and when to trigger it.
+allowed-tools:
+  - Bash
+  - Read
+---
+
+# qruiq-CHANGEME
+
+## When to use
+Describe trigger conditions here.
+
+## Instructions
+Skill instructions here.

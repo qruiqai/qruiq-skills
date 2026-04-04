@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SKILLS_SRC="$SCRIPT_DIR/skills"
+
+CLAUDE_SKILLS="$HOME/.claude/skills"
+CODEX_SKILLS="$HOME/.codex/skills"
+
+mkdir -p "$CLAUDE_SKILLS" "$CODEX_SKILLS"
+
+# Clean up stale qruiq-* symlinks
+for dir in "$CLAUDE_SKILLS" "$CODEX_SKILLS"; do
+  for link in "$dir"/qruiq-*; do
+    [ -L "$link" ] && [ ! -e "$link" ] && rm "$link"
+  done
+done
+
+# Create symlinks for each qruiq-* skill
+linked=()
+for skill_dir in "$SKILLS_SRC"/qruiq-*/; do
+  [ -d "$skill_dir" ] || continue
+  [ -f "$skill_dir/SKILL.md" ] || continue
+  skill_name="$(basename "$skill_dir")"
+
+  # Claude Code
+  target="$CLAUDE_SKILLS/$skill_name"
+  if [ -L "$target" ] || [ ! -e "$target" ]; then
+    ln -snf "$skill_dir" "$target"
+  fi
+
+  # Codex
+  target="$CODEX_SKILLS/$skill_name"
+  if [ -L "$target" ] || [ ! -e "$target" ]; then
+    ln -snf "$skill_dir" "$target"
+  fi
+
+  linked+=("$skill_name")
+done
+
+echo "qruiq skills ready."
+echo "  linked: ${linked[*]}"
+echo "  claude: $CLAUDE_SKILLS"
+echo "  codex:  $CODEX_SKILLS"
