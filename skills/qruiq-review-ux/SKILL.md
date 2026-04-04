@@ -73,11 +73,14 @@ grep -rn "redirect\|unauthorized\|forbidden\|role\|permission\|isAuth\|isAdmin\|
 
 # Multi-step flows
 grep -rn "step\|wizard\|stepper\|onNext\|onPrev\|currentStep" --include="*.tsx" --include="*.ts"
+
+# Native HTML elements (should use component library instead)
+grep -rn "<button\|<input\|<select\|<textarea\|<table\|<dialog\|<details\|<progress\|<meter\|window\.confirm\|window\.alert\|window\.prompt" --include="*.tsx"
 ```
 
 ### 2. Audit against the checklist
 
-For each interactive element found, check against the **Interaction Checklist** (categories A–Q) below.
+For each interactive element found, check against the **Interaction Checklist** (categories A–R) below.
 Record all violations as a structured report.
 
 ### 3. Output the report
@@ -113,7 +116,7 @@ Present a structured report in this format:
 
 Severity levels:
 - **P0 Critical**: Data loss without confirmation, no error handling on mutations, exposed actions without auth guard
-- **P1 High**: Missing loading states, no disabled during submit, no toast feedback, flat info hierarchy exposing destructive/sensitive actions at top level
+- **P1 High**: Missing loading states, no disabled during submit, no toast feedback, flat info hierarchy exposing destructive/sensitive actions at top level, using native HTML elements instead of component library
 - **P2 Medium**: Missing empty states, no keyboard support, poor focus management, no search debounce, missing scroll restoration
 - **P3 Low**: Missing transitions/animations, tooltip hints, micro-interactions, inconsistent icon-only button hints
 
@@ -364,6 +367,27 @@ Low-frequency or sensitive actions must not sit at the same visual level as prim
 - Persist filter, sort, and tab state in URL search params so it survives refresh and is shareable
 - Infinite scroll pages should show a floating "Back to top" button after scrolling 2+ viewport heights
 - Consider URL-based pagination (e.g. `?page=3`) even in infinite scroll as a fallback anchor
+
+### R. Native Element Avoidance — Use Component Library
+
+Projects using a component library (e.g. HeroUI, Ant Design, MUI, shadcn/ui) must NOT use native HTML elements for interactive UI. Native elements have inconsistent styling across browsers, lack built-in dark mode support, and break visual consistency.
+
+**What to check:**
+- `<button>` instead of the library's `<Button>`
+- `<input>` / `<textarea>` instead of `<Input>` / `<Textarea>`
+- `<select>` instead of `<Select>` or `<Dropdown>`
+- `<table>` / `<tr>` / `<td>` instead of `<Table>` / `<TableRow>` / `<TableCell>`
+- `<dialog>` instead of `<Modal>`
+- `<details>` / `<summary>` instead of `<Accordion>`
+- `<progress>` / `<meter>` instead of `<Progress>` / `<CircularProgress>`
+- `<input type="checkbox">` / `<input type="radio">` instead of `<Checkbox>` / `<Radio>`
+- `<input type="file">` without a styled wrapper or drop zone component
+- `window.confirm()` / `window.alert()` / `window.prompt()` instead of Modal or Toast
+
+**Expected pattern:**
+- Always use the project's component library equivalent — this ensures consistent theming, dark mode, accessibility, and responsive behavior out of the box
+- If no library equivalent exists for a specific element, wrap the native element in a styled component that matches the design system
+- The only acceptable native elements are non-interactive structural tags (`<div>`, `<span>`, `<p>`, `<h1>`–`<h6>`, `<ul>`, `<li>`, `<form>`, `<label>`, `<img>`, `<a>`, etc.)
 
 ---
 
