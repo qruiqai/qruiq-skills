@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: __APP_NAME__-web
+  namespace: __APP_NAME__-dev
+  labels:
+    app: __APP_NAME__
+    component: web
+spec:
+  type: ClusterIP
+  selector:
+    app: __APP_NAME__
+    component: web
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+      protocol: TCP
+  sessionAffinity: None

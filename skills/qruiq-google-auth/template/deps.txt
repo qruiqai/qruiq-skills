@@ -1,0 +1,7 @@
+# NextAuth + Google OAuth 依赖
+next-auth
+@auth/prisma-adapter
+@prisma/client
+
+# 开发依赖
+prisma

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: __APP_NAME__-dev
+  labels:
+    name: __APP_NAME__-dev
+    environment: development

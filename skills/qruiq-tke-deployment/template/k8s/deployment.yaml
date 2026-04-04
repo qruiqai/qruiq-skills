@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: __APP_NAME__-web
+  namespace: __APP_NAME__-dev
+  labels:
+    app: __APP_NAME__
+    component: web
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: __APP_NAME__
+      component: web
+  template:
+    metadata:
+      labels:
+        app: __APP_NAME__
+        component: web
+    spec:
+      imagePullSecrets:
+        - name: tcr-secret
+      containers:
+        - name: web
+          image: sgccr.ccs.tencentyun.com/__TCR_NAMESPACE__/__IMAGE_NAME__:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: NODE_ENV
+              value: "development"
+            - name: PORT
+              value: "3000"
+            - name: HOSTNAME
+              value: "0.0.0.0"
+            - name: NEXT_TELEMETRY_DISABLED
+              value: "1"
+          envFrom:
+            - secretRef:
+                name: __APP_NAME__-secrets
+          resources:
+            requests:
+              cpu: 1m
+              memory: 64Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: tmp-logs
+              mountPath: /var/log/app
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: tmp-logs
+          emptyDir: {}
