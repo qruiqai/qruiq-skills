@@ -1,16 +1,17 @@
 ---
 name: qruiq-review-ux
 description: |
-  Review-only audit of interaction UX patterns. Scans for missing confirmation dialogs,
-  loading states, toast feedback, form validation, empty states, keyboard accessibility,
-  error boundaries, progressive disclosure, navigation patterns, responsive touch targets,
-  scroll behavior, state persistence, search UX, file upload UX, permission UI,
-  and other interaction anti-patterns. Reports issues with severity and recommended fix —
-  does NOT modify any code.
+  Review-only audit of interaction UX patterns and design principles. Scans for missing
+  confirmation dialogs, loading states, toast feedback, form validation, empty states,
+  keyboard accessibility, error boundaries, progressive disclosure, navigation patterns,
+  responsive touch targets, scroll behavior, state persistence, search UX, file upload UX,
+  permission UI, native element usage, and HeroUI design principle violations (semantic
+  variants, composition patterns, consistency, type safety, customization). Reports issues
+  with severity and recommended fix — does NOT modify any code.
   Use when asked to "review UX", "audit interactions", "check UX", "交互审查",
   "优化交互", "交互细节", "UX best practices", "review UI patterns", "检查界面",
-  "UI 审查", "交互优化", or any request involving reviewing or improving the quality
-  of user-facing interaction flows.
+  "UI 审查", "交互优化", "design review", "设计审查", "组件审查", or any request
+  involving reviewing or improving the quality of user-facing interaction flows.
 allowed-tools:
   - Read
   - Grep
@@ -76,11 +77,29 @@ grep -rn "step\|wizard\|stepper\|onNext\|onPrev\|currentStep" --include="*.tsx" 
 
 # Native HTML elements (should use component library instead)
 grep -rn "<button\|<input\|<select\|<textarea\|<table\|<dialog\|<details\|<progress\|<meter\|window\.confirm\|window\.alert\|window\.prompt" --include="*.tsx"
+
+# Design: variant naming (visual names instead of semantic)
+grep -rn 'variant=.solid\|variant=.flat\|variant=.bordered\|variant=.ghost\|variant=.faded\|variant=.light\|variant=.shadow' --include="*.tsx"
+
+# Design: button hierarchy (multiple primary buttons in one view)
+grep -rn 'variant=.primary' --include="*.tsx"
+
+# Design: composition patterns (monolithic props vs compound components)
+grep -rn 'startContent=\|endContent=\|leftIcon=\|rightIcon=\|icon=\|label=' --include="*.tsx"
+
+# Design: size consistency
+grep -rn 'size=.' --include="*.tsx"
+
+# Design: className usage for customization
+grep -rn 'className=' --include="*.tsx"
+
+# Design: accessibility labels
+grep -rn 'aria-label\|accessibilityLabel\|accessibilityHint' --include="*.tsx"
 ```
 
 ### 2. Audit against the checklist
 
-For each interactive element found, check against the **Interaction Checklist** (categories A–R) below.
+For each interactive element found, check against the **Interaction Checklist** (categories A–S) below.
 Record all violations as a structured report.
 
 ### 3. Output the report
@@ -117,8 +136,8 @@ Present a structured report in this format:
 Severity levels:
 - **P0 Critical**: Data loss without confirmation, no error handling on mutations, exposed actions without auth guard
 - **P1 High**: Missing loading states, no disabled during submit, no toast feedback, flat info hierarchy exposing destructive/sensitive actions at top level, using native HTML elements instead of component library
-- **P2 Medium**: Missing empty states, no keyboard support, poor focus management, no search debounce, missing scroll restoration
-- **P3 Low**: Missing transitions/animations, tooltip hints, micro-interactions, inconsistent icon-only button hints
+- **P2 Medium**: Missing empty states, no keyboard support, poor focus management, no search debounce, missing scroll restoration, design principle violations (inconsistent variants, broken hierarchy)
+- **P3 Low**: Missing transitions/animations, tooltip hints, micro-interactions, inconsistent icon-only button hints, minor design inconsistencies (size mismatches, missing className customization points)
 
 **Do NOT apply any fixes. Only report.**
 
@@ -388,6 +407,122 @@ Projects using a component library (e.g. HeroUI, Ant Design, MUI, shadcn/ui) mus
 - Always use the project's component library equivalent — this ensures consistent theming, dark mode, accessibility, and responsive behavior out of the box
 - If no library equivalent exists for a specific element, wrap the native element in a styled component that matches the design system
 - The only acceptable native elements are non-interactive structural tags (`<div>`, `<span>`, `<p>`, `<h1>`–`<h6>`, `<ul>`, `<li>`, `<form>`, `<label>`, `<img>`, `<a>`, etc.)
+
+### S. Design Principles Audit (HeroUI)
+
+Audit component usage against HeroUI's 9 core design principles. Reference: https://www.heroui.com/docs/native/getting-started/design-principles
+
+#### S1. Semantic Intent Over Visual Style
+
+**What to check:**
+- Variants using visual names (`solid`, `flat`, `bordered`, `ghost`, `faded`, `light`, `shadow`) instead of semantic names (`primary`, `secondary`, `tertiary`, `danger`)
+- Button groups or action sets where the visual hierarchy is unclear — reader cannot tell at a glance which is the main action
+
+**Expected pattern:**
+- Use semantic variant names that communicate hierarchy: `primary` (main action, 1 per context), `secondary` (alternative actions), `tertiary` (dismissive: cancel, skip), `danger` (destructive)
+- Bad: `<Button variant="solid">Save</Button> <Button variant="flat">Cancel</Button>`
+- Good: `<Button variant="primary">Save</Button> <Button variant="tertiary">Cancel</Button>`
+
+#### S2. Accessibility as Foundation
+
+**What to check:**
+- Interactive components missing accessibility labels (`aria-label`, `accessibilityLabel`)
+- Custom components that don't pass accessibility props through to the underlying HeroUI component
+- Focus order that doesn't match visual reading order
+- Touch targets without proper hit area sizing
+
+**Expected pattern:**
+- All interactive components must have accessibility labels — HeroUI components include built-in support, but custom wrappers must forward these props
+- Screen reader announcements should describe the action, not the visual appearance (e.g. "Delete item" not "Red button")
+- Tab order must follow logical reading order (left-to-right, top-to-bottom)
+
+#### S3. Composition Over Configuration
+
+**What to check:**
+- Using monolithic prop-based patterns (`startContent`, `endContent`, `leftIcon`, `rightIcon`, `label` as props) instead of HeroUI's compound component (dot notation) pattern
+- Components that pass complex JSX through props instead of composing with child components
+- Deeply nested prop objects for styling individual parts
+
+**Expected pattern:**
+- Use compound components with dot notation for composability:
+  - Bad: `<Button label="Submit" leftIcon={<Icon />} />`
+  - Good: `<Button><Icon /><Button.Label>Submit</Button.Label></Button>`
+- Each sub-component should be independently arrangeable, customizable, or omittable
+- If a component supports dot notation (`.Trigger`, `.Content`, `.Label`, `.Indicator`), use it
+
+#### S4. Progressive Disclosure in Component Usage
+
+**What to check:**
+- Components overloaded with too many props when a minimal version would suffice
+- Complex configurations used where simple defaults work
+- All available options exposed at once instead of layered complexity
+
+**Expected pattern:**
+- Start with minimal props; add complexity only when the use case demands it:
+  - Level 1 (minimal): `<Button>Click me</Button>`
+  - Level 2 (enhanced): `<Button variant="primary" size="lg"><Icon /><Button.Label>Submit</Button.Label></Button>`
+  - Level 3 (advanced): Add `isDisabled`, `isLoading`, conditional children
+- If a component works without a prop, don't add the prop
+
+#### S5. Predictable Behavior & Consistency
+
+**What to check:**
+- Inconsistent `size` values across components in the same view (e.g. `size="sm"` button next to `size="lg"` chip with no reason)
+- Different variant naming or patterns for similar components
+- Components that don't accept `className` for customization
+- Hardcoded pixel values instead of using the size system (`sm`, `md`, `lg`)
+
+**Expected pattern:**
+- Use consistent `size` across related components in the same context
+- All components should follow the same API patterns: `size`, `variant`, `className`, `color`
+- Prefer the size tokens (`sm`, `md`, `lg`) over hardcoded values
+- If one button in a group is `size="md"`, all buttons in that group should be `size="md"` unless intentionally differentiated
+
+#### S6. Type Safety
+
+**What to check:**
+- Using string literals for variants/sizes without TypeScript checking (e.g. `variant={"custom"}` that isn't in the type union)
+- Custom component wrappers that lose type information (`any` types, missing generics)
+- Event handlers without proper typing (e.g. `onPress={(e: any) => ...}`)
+
+**Expected pattern:**
+- Extend component types properly: `interface CustomButtonProps extends Omit<ButtonRootProps, 'variant'> { ... }`
+- Never use `any` for component props — leverage HeroUI's exported types
+- Custom variants should be typed as string unions
+
+#### S7. Customization Patterns
+
+**What to check:**
+- Inline styles (`style={{...}}`) used for theming instead of `className` or CSS variables
+- Overriding component internals with `!important` or deep CSS selectors
+- Colors hardcoded as hex/rgb instead of using theme tokens (`--accent`, `--background`)
+- No dark mode consideration — colors that only work in one theme
+
+**Expected pattern:**
+- Use `className` for component customization, not inline styles
+- Use Tailwind Variants (`tv()`) for custom variant definitions
+- Colors must reference theme tokens or CSS variables — never hardcode `#fff` or `rgb(0,0,0)`
+- All custom styles must work in both light and dark mode
+- For extensive customization, create a wrapper component with `tv()` rather than ad-hoc className strings
+
+#### S8. Component Extension Patterns
+
+**What to check:**
+- Copy-pasted HeroUI component source code instead of wrapping/extending
+- Components that re-implement functionality already provided by HeroUI (custom modal, custom dropdown)
+- Custom components that don't forward refs or spread remaining props
+
+**Expected pattern:**
+- Wrap, don't fork: create custom wrappers using HeroUI base components
+- Custom wrappers must spread `...props` to the underlying component for extensibility
+- Use `tailwind-variants` (`tv()`) for custom variant maps when the built-in variants aren't enough
+- Example:
+  ```tsx
+  const CTAButton = ({ intent = 'primary-cta', children, ...props }) => {
+    const variantMap = { 'primary-cta': 'primary', 'secondary-cta': 'secondary' };
+    return <Button variant={variantMap[intent]} {...props}><Button.Label>{children}</Button.Label></Button>;
+  };
+  ```
 
 ---
 
