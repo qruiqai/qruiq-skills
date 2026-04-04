@@ -13,7 +13,9 @@ description: |
   "UI 审查", "交互优化", "design review", "设计审查", "组件审查", or any request
   involving reviewing or improving the quality of user-facing interaction flows.
 allowed-tools:
+  - Bash
   - Read
+  - Write
   - Grep
   - Glob
 ---
@@ -37,72 +39,117 @@ Collect before execution:
 
 **Execute all steps directly. Do not list as TODOs.**
 
-### 1. Scan the project
+### 1. Determine scan scope (incremental vs full)
 
-Identify all interactive elements by searching for:
+The skill uses a file-level cache at `.review-cache/` in the project root. Each scanned file produces a per-file result stored as `.review-cache/<relative-path>.json`.
 
-```bash
-# Destructive actions
-grep -rn "delete\|remove\|reset\|revoke\|disconnect\|destroy" --include="*.tsx" --include="*.ts"
+**Decision logic:**
 
-# Form submissions
-grep -rn "onSubmit\|handleSubmit\|action=" --include="*.tsx"
-
-# Buttons and clickable elements
-grep -rn "<Button\|<button\|onClick" --include="*.tsx"
-
-# API calls (mutations)
-grep -rn "fetch(\|axios\.\|useSWRMutation\|useMutation\|\.post(\|\.put(\|\.delete(\|\.patch(" --include="*.tsx" --include="*.ts"
-
-# Navigation and menus
-grep -rn "Dropdown\|Popover\|Menu\|NavBar\|Sidebar\|drawer\|signOut\|logout\|sign.out\|log.out" --include="*.tsx"
-
-# Search inputs
-grep -rn "search\|<Input.*type=.search\|useSearch\|onSearch\|debounce" --include="*.tsx" --include="*.ts"
-
-# File uploads
-grep -rn "upload\|<input.*type=.file\|FileReader\|FormData\|dropzone\|drag.*drop" --include="*.tsx" --include="*.ts"
-
-# Lists and tables
-grep -rn "<Table\|<table\|\.map(\|<Card.*map\|pagination\|Pagination\|infinite" --include="*.tsx"
-
-# Scroll behavior
-grep -rn "scroll\|useScroll\|IntersectionObserver\|scrollTo\|overflow" --include="*.tsx" --include="*.ts"
-
-# Route guards and permissions
-grep -rn "redirect\|unauthorized\|forbidden\|role\|permission\|isAuth\|isAdmin\|canAccess" --include="*.tsx" --include="*.ts"
-
-# Multi-step flows
-grep -rn "step\|wizard\|stepper\|onNext\|onPrev\|currentStep" --include="*.tsx" --include="*.ts"
-
-# Native HTML elements (should use component library instead)
-grep -rn "<button\|<input\|<select\|<textarea\|<table\|<dialog\|<details\|<progress\|<meter\|window\.confirm\|window\.alert\|window\.prompt" --include="*.tsx"
-
-# Design: variant naming (visual names instead of semantic)
-grep -rn 'variant=.solid\|variant=.flat\|variant=.bordered\|variant=.ghost\|variant=.faded\|variant=.light\|variant=.shadow' --include="*.tsx"
-
-# Design: button hierarchy (multiple primary buttons in one view)
-grep -rn 'variant=.primary' --include="*.tsx"
-
-# Design: composition patterns (monolithic props vs compound components)
-grep -rn 'startContent=\|endContent=\|leftIcon=\|rightIcon=\|icon=\|label=' --include="*.tsx"
-
-# Design: size consistency
-grep -rn 'size=.' --include="*.tsx"
-
-# Design: className usage for customization
-grep -rn 'className=' --include="*.tsx"
-
-# Design: accessibility labels
-grep -rn 'aria-label\|accessibilityLabel\|accessibilityHint' --include="*.tsx"
+```
+if .review-cache/ does NOT exist:
+  → Full scan: scan every .tsx/.ts file in SCOPE
+else:
+  → Incremental scan: only scan files changed since last scan
 ```
 
-### 2. Audit against the checklist
+**Step 1a — Check for cache directory:**
 
-For each interactive element found, check against the **Interaction Checklist** (categories A–S) below.
-Record all violations as a structured report.
+```bash
+ls .review-cache/ 2>/dev/null
+```
 
-### 3. Output the report
+**Step 1b — If cache exists, get changed files only:**
+
+Use git diff to find files changed since the last scan timestamp stored in `.review-cache/_meta.json`:
+
+```bash
+# Read last scan commit from meta
+cat .review-cache/_meta.json   # { "last_commit": "<sha>", "last_scan": "<iso-date>" }
+
+# Get changed .tsx/.ts files since that commit
+git diff --name-only <last_commit> HEAD -- '*.tsx' '*.ts'
+
+# Also include untracked new files
+git ls-files --others --exclude-standard -- '*.tsx' '*.ts'
+```
+
+If the last commit no longer exists (e.g. after a rebase), fall back to full scan.
+
+**Step 1c — If no cache, collect all files:**
+
+```bash
+# Use Glob to find all .tsx/.ts files in SCOPE
+# Pattern: "**/*.tsx" and "**/*.ts" (exclude node_modules, .next, dist)
+```
+
+### 2. Scan files (file-by-file)
+
+For each file in the scan list, **Read the entire file** and audit it against ALL checklist categories (A–S). Do NOT use grep for scanning — read each file fully to understand context.
+
+**For each file, check for:**
+- Destructive actions without confirmation (delete, remove, reset, revoke, destroy)
+- Buttons/forms triggering async ops without loading/disabled states
+- Mutations with no toast/feedback on success or failure
+- Toggles/favorites waiting for API before updating UI
+- Forms missing client-side validation, required indicators, or error preservation
+- Lists/tables with no empty state
+- Custom clickable elements (`<div onClick>`) not keyboard-accessible
+- Missing error boundaries on routes or dynamic sections
+- Instant show/hide with no transitions
+- Low-frequency actions (logout, delete account) not behind progressive disclosure
+- Navigation missing active state, mobile support, or breadcrumbs
+- Touch targets < 44px, hover-only interactions
+- Search without debounce, clear button, or empty results state
+- File uploads without progress, validation, or preview
+- Permission-gated content flashing before redirect
+- Tables without sort, loading state, or mobile fallback
+- Scroll/state not persisted across navigation
+- Native HTML elements (`<button>`, `<input>`, `<select>`, `<table>`, `<dialog>`, `window.confirm()`) used instead of component library equivalents
+- Design: visual variant names instead of semantic (`solid`/`flat` → `primary`/`secondary`)
+- Design: prop-based composition instead of dot notation compound components
+- Design: inconsistent sizes, hardcoded colors, missing className, lost type safety, copy-pasted components instead of wrappers
+
+**Per-file result format** (written to `.review-cache/<relative-path>.json`):
+
+```json
+{
+  "file": "app/dashboard/page.tsx",
+  "scanned_at": "2026-04-05T12:00:00Z",
+  "commit": "ae68566",
+  "issues": [
+    {
+      "line": 42,
+      "category": "A",
+      "severity": "P0",
+      "summary": "Delete handler calls API without confirmation modal",
+      "recommendation": "Wrap in a Modal with confirmation text naming the target"
+    }
+  ]
+}
+```
+
+If a file has zero issues, still write the cache entry with an empty `issues` array — this marks it as scanned.
+
+### 3. Update cache metadata
+
+After all files are scanned, write/update `.review-cache/_meta.json`:
+
+```json
+{
+  "last_commit": "<current HEAD sha>",
+  "last_scan": "<current ISO timestamp>",
+  "total_files_scanned": 42,
+  "scan_mode": "full | incremental"
+}
+```
+
+**Important:** Add `.review-cache/` to `.gitignore` if not already present.
+
+### 4. Merge results and output the report
+
+Combine all per-file cache results (not just the ones scanned this run — include cached results from previous runs for unchanged files) into a single report.
+
+### 5. Output the report
 
 Present a structured report in this format:
 
@@ -556,7 +603,11 @@ qruiq-create-app          → Project skeleton
 
 ## Rules
 
-- **NEVER edit, write, or create any file** — this is a review-only skill
+- **NEVER edit source code files** — this is a review-only skill. The only files written are inside `.review-cache/`
+- **Write** and **Bash** tools are ONLY for managing `.review-cache/` and `.gitignore` — never for modifying project source
 - Output a structured report with file paths, line numbers, and severity
 - If no issues are found for a category, skip it in the report
 - Be specific: cite exact file + line, not vague "some buttons lack loading states"
+- On incremental scans, merge cached results from unchanged files with fresh results from changed files
+- If a previously cached file has been deleted, remove its cache entry
+- Always ensure `.review-cache/` is in `.gitignore`
