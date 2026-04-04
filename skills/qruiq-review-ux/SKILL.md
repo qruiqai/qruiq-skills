@@ -1,5 +1,5 @@
 ---
-name: qruiq-ux-polish
+name: qruiq-review-ux
 description: |
   Review-only audit of interaction UX patterns. Scans for missing confirmation dialogs,
   loading states, toast feedback, form validation, empty states, keyboard accessibility,
@@ -13,7 +13,7 @@ allowed-tools:
   - Glob
 ---
 
-# qruiq-ux-polish
+# qruiq-review-ux
 
 > **Review-only.** Audit the current project for interaction anti-patterns and produce a
 > structured report with recommendations. This skill never edits code.
