@@ -3,10 +3,14 @@ name: qruiq-review-ux
 description: |
   Review-only audit of interaction UX patterns. Scans for missing confirmation dialogs,
   loading states, toast feedback, form validation, empty states, keyboard accessibility,
-  error boundaries, and other interaction anti-patterns. Reports issues with severity
-  and recommended fix — does NOT modify any code.
+  error boundaries, progressive disclosure, navigation patterns, responsive touch targets,
+  scroll behavior, state persistence, search UX, file upload UX, permission UI,
+  and other interaction anti-patterns. Reports issues with severity and recommended fix —
+  does NOT modify any code.
   Use when asked to "review UX", "audit interactions", "check UX", "交互审查",
-  "优化交互", "交互细节", or "UX best practices".
+  "优化交互", "交互细节", "UX best practices", "review UI patterns", "检查界面",
+  "UI 审查", "交互优化", or any request involving reviewing or improving the quality
+  of user-facing interaction flows.
 allowed-tools:
   - Read
   - Grep
@@ -36,23 +40,44 @@ Collect before execution:
 
 Identify all interactive elements by searching for:
 
-```
-# Destructive actions (delete, remove, reset, revoke, disconnect)
-grep -r "delete\|remove\|reset\|revoke\|disconnect\|destroy" --include="*.tsx" --include="*.ts"
+```bash
+# Destructive actions
+grep -rn "delete\|remove\|reset\|revoke\|disconnect\|destroy" --include="*.tsx" --include="*.ts"
 
 # Form submissions
-grep -r "onSubmit\|handleSubmit\|action=" --include="*.tsx"
+grep -rn "onSubmit\|handleSubmit\|action=" --include="*.tsx"
 
 # Buttons and clickable elements
-grep -r "<Button\|<button\|onClick" --include="*.tsx"
+grep -rn "<Button\|<button\|onClick" --include="*.tsx"
 
 # API calls (mutations)
-grep -r "fetch(\|axios\.\|useSWRMutation\|useMutation\|\.post(\|\.put(\|\.delete(\|\.patch(" --include="*.tsx" --include="*.ts"
+grep -rn "fetch(\|axios\.\|useSWRMutation\|useMutation\|\.post(\|\.put(\|\.delete(\|\.patch(" --include="*.tsx" --include="*.ts"
+
+# Navigation and menus
+grep -rn "Dropdown\|Popover\|Menu\|NavBar\|Sidebar\|drawer\|signOut\|logout\|sign.out\|log.out" --include="*.tsx"
+
+# Search inputs
+grep -rn "search\|<Input.*type=.search\|useSearch\|onSearch\|debounce" --include="*.tsx" --include="*.ts"
+
+# File uploads
+grep -rn "upload\|<input.*type=.file\|FileReader\|FormData\|dropzone\|drag.*drop" --include="*.tsx" --include="*.ts"
+
+# Lists and tables
+grep -rn "<Table\|<table\|\.map(\|<Card.*map\|pagination\|Pagination\|infinite" --include="*.tsx"
+
+# Scroll behavior
+grep -rn "scroll\|useScroll\|IntersectionObserver\|scrollTo\|overflow" --include="*.tsx" --include="*.ts"
+
+# Route guards and permissions
+grep -rn "redirect\|unauthorized\|forbidden\|role\|permission\|isAuth\|isAdmin\|canAccess" --include="*.tsx" --include="*.ts"
+
+# Multi-step flows
+grep -rn "step\|wizard\|stepper\|onNext\|onPrev\|currentStep" --include="*.tsx" --include="*.ts"
 ```
 
 ### 2. Audit against the checklist
 
-For each interactive element found, check against the **Interaction Checklist** below.
+For each interactive element found, check against the **Interaction Checklist** (categories A–Q) below.
 Record all violations as a structured report.
 
 ### 3. Output the report
@@ -73,7 +98,7 @@ Present a structured report in this format:
 #### 1. [File:Line] Short description
 - **Category**: (e.g. A. Destructive Actions)
 - **Problem**: What's wrong
-- **Recommendation**: How to fix it, referencing the pattern from the Reference Patterns section
+- **Recommendation**: How to fix it
 - **Code snippet**: The offending code (3-5 lines for context)
 
 ### P1 High
@@ -87,10 +112,10 @@ Present a structured report in this format:
 ```
 
 Severity levels:
-- **P0 Critical**: Data loss without confirmation, no error handling on mutations
-- **P1 High**: Missing loading states, no disabled during submit, no toast feedback
-- **P2 Medium**: Missing empty states, no keyboard support, poor focus management
-- **P3 Low**: Missing transitions/animations, tooltip hints, micro-interactions
+- **P0 Critical**: Data loss without confirmation, no error handling on mutations, exposed actions without auth guard
+- **P1 High**: Missing loading states, no disabled during submit, no toast feedback, flat info hierarchy exposing destructive/sensitive actions at top level
+- **P2 Medium**: Missing empty states, no keyboard support, poor focus management, no search debounce, missing scroll restoration
+- **P3 Low**: Missing transitions/animations, tooltip hints, micro-interactions, inconsistent icon-only button hints
 
 **Do NOT apply any fixes. Only report.**
 
@@ -108,24 +133,24 @@ Any action that deletes, removes, resets, or irreversibly changes data MUST have
 - Bulk actions (select all → delete) without explicit count in confirmation
 
 **Expected pattern:**
-- Use a Modal (HeroUI `<Modal>`) or Popover confirmation — NOT `window.confirm()`
+- Use a Modal or Popover confirmation — never `window.confirm()`
 - Confirmation text must name the action and the target (e.g. "Delete project 'My App'?")
-- Destructive button must be `color="danger"` and placed on the right
-- Cancel button must be the default focus (prevent accidental confirm)
-- Support `Escape` key to cancel
+- Destructive button must use danger styling and be placed on the right
+- Cancel button must be the default focus to prevent accidental confirm
+- Must support `Escape` key to cancel
 
 ### B. Loading & Disabled States
 
 **What to check:**
 - Buttons that trigger async operations without a loading indicator
 - Forms that can be double-submitted
-- Pages that fetch data without a skeleton/spinner
+- Pages that fetch data without a skeleton or spinner
 
 **Expected pattern:**
-- Button must show `isLoading` spinner and be `isDisabled` while the operation is in-flight
-- Form submit buttons must be disabled after first click until response
-- Use HeroUI `<Spinner>` or `<Skeleton>` for data loading states
-- Full-page loads should use skeleton layouts matching the final content shape
+- Buttons must show a loading spinner and be disabled while the operation is in-flight
+- Form submit buttons must be disabled after first click until the response arrives
+- Data loading states should use skeleton layouts matching the final content shape
+- Full-page loads should never show a blank white screen — always show a skeleton or spinner
 
 ### C. Toast / Feedback Notifications
 
@@ -135,20 +160,19 @@ Any action that deletes, removes, resets, or irreversibly changes data MUST have
 
 **Expected pattern:**
 - Every mutation must show a toast on success AND on failure
-- Use a toast library (e.g. `sonner`, `react-hot-toast`) — configure once in providers
-- Success toast: brief, auto-dismiss in 3s (e.g. "Project deleted")
-- Error toast: persist until dismissed, include retry action if applicable
-- Do NOT use `alert()` or `window.alert()`
+- Use a toast library (e.g. `sonner`) — configure once in providers, never use `alert()` or `window.alert()`
+- Success toasts should be brief and auto-dismiss in ~3 seconds
+- Error toasts should persist until dismissed and include a retry action if applicable
 
 ### D. Optimistic Updates
 
 **What to check:**
-- Toggle switches, like/favorite buttons, or status changes that wait for API response
+- Toggle switches, like/favorite buttons, or status changes that wait for API response before reflecting in UI
 - Lists where adding/removing items causes a full refetch flash
 
 **Expected pattern:**
 - UI-only state changes (toggles, favorites) should update immediately and rollback on error
-- List mutations should optimistically add/remove the item
+- List mutations should optimistically add/remove the item without a loading flash
 - Show a subtle rollback toast if the optimistic update fails
 
 ### E. Form Validation & Error Handling
@@ -162,47 +186,44 @@ Any action that deletes, removes, resets, or irreversibly changes data MUST have
 **Expected pattern:**
 - Required fields must have a visual indicator (asterisk or label text)
 - Validate on blur for individual fields, validate all on submit
-- Error messages appear directly below the invalid field, in `text-danger`
-- Form state must be preserved on submission failure (never clear inputs)
-- Use HeroUI `isInvalid` + `errorMessage` props on input components
+- Error messages must appear directly below the invalid field
+- Form state must be preserved on submission failure — never clear user inputs on error
 
 ### F. Empty States
 
 **What to check:**
-- Lists/tables that show nothing when data is empty
+- Lists or tables that show nothing when data is empty
 - Search results with no matches showing a blank area
 - Dashboard widgets with no data
 
 **Expected pattern:**
-- Every list/table must have an empty state with: icon + message + primary action
-- Example: "No projects yet" + [Create Project] button
-- Search empty state should suggest clearing filters or broadening the query
-- Use a centered layout with muted text and an illustrative icon
+- Every list/table must have an empty state with: illustrative icon + message + primary action button
+- Search empty states should suggest clearing filters or broadening the query
+- Use a centered layout with muted text
 
 ### G. Keyboard Accessibility
 
 **What to check:**
 - Custom clickable elements (`<div onClick>`) that are not focusable
-- Modals/dropdowns that don't trap focus
+- Modals or dropdowns that don't trap focus
 - Missing `aria-label` on icon-only buttons
 
 **Expected pattern:**
-- All interactive elements must be focusable (`<button>`, `<a>`, or `tabIndex={0}` + `role`)
+- All interactive elements must be focusable — use semantic elements (`<button>`, `<a>`) or add `tabIndex={0}` + `role`
 - Custom clickable divs must handle `onKeyDown` for Enter and Space
-- Modals must trap focus and return focus to the trigger on close
+- Modals must trap focus and return focus to the trigger element on close
 - Icon-only buttons must have `aria-label`
-- Dropdown menus must support arrow key navigation (HeroUI handles this natively)
 
 ### H. Error Boundaries
 
 **What to check:**
-- Pages/sections that crash the entire app on render error
+- Pages or sections that crash the entire app on render error
 - Missing error boundaries around dynamic content (user-generated, API-driven)
 
 **Expected pattern:**
-- Each route should have an `error.tsx` (Next.js error boundary)
+- Each route should have a framework-level error boundary (e.g. `error.tsx` in Next.js)
 - Critical sections (charts, user content, third-party embeds) should have local error boundaries
-- Error UI must offer a "Try again" action and not expose stack traces in production
+- Error UI must offer a "Try again" action and never expose stack traces in production
 
 ### I. Transitions & Micro-interactions
 
@@ -212,12 +233,141 @@ Any action that deletes, removes, resets, or irreversibly changes data MUST have
 - State changes with no visual continuity
 
 **Expected pattern:**
-- Modals/drawers: use HeroUI built-in animations (already included)
-- List item add/remove: use `framer-motion` `AnimatePresence` + `layout` for smooth reflows
-- Skeleton → content: crossfade transition
-- Button state changes (idle → loading → success): smooth icon/text transitions
+- Modals and drawers should animate in/out (HeroUI handles this natively)
+- List item add/remove should use layout animations for smooth reflows
+- Skeleton-to-content transitions should crossfade
+- Button state changes (idle → loading → success) should transition smoothly
 
-### J. Confirmation Patterns by Action Type
+### J. Progressive Disclosure & Information Hierarchy
+
+Low-frequency or sensitive actions must not sit at the same visual level as primary actions. They should be nested behind an intentional interaction so the interface remains clean and safe.
+
+**What to check:**
+- Sign Out / Logout exposed as a top-level button in the header instead of nested inside a user avatar dropdown menu
+- "Delete Account" or danger zone settings visible on page load without a collapsed section
+- Admin-only actions displayed at the same visual level as regular user actions
+- Settings pages that dump all options in a flat list without grouping or collapsible sections
+- Edit/Delete actions on cards permanently visible instead of revealed on hover or via a "⋮" overflow menu
+- Toolbars with too many visible buttons — low-frequency actions should collapse into a "More" menu
+
+**Expected pattern:**
+- Account actions (Sign Out, Profile, Settings) belong inside a Dropdown triggered by the user's avatar — the avatar is the natural affordance for "things about me"
+- Destructive settings should be behind a collapsible "Danger Zone" section or placed at the very bottom of the page
+- Card action menus: use a three-dot icon button that opens a dropdown; only the primary action (e.g. "Open") should be directly visible on the card surface
+- Toolbars with more than 4–5 actions should group lower-priority items into a "More" dropdown
+- Inline editing: show read-only content by default; reveal edit controls on hover or via an explicit "Edit" trigger
+
+### K. Navigation & Menu Patterns
+
+**What to check:**
+- No visual indicator for the current active route in the sidebar or navbar
+- Mobile navigation missing entirely (no hamburger menu, bottom tabs, or drawer)
+- Breadcrumbs absent on deeply nested pages (3+ levels deep)
+- Logo or app name not linking back to home/dashboard
+- Navigation items using plain `<div>` or `<span>` instead of proper link elements
+
+**Expected pattern:**
+- Active route must be visually distinct (background highlight, bold text, left border, or underline)
+- Mobile screens (< 768px) should collapse navigation into a hamburger/drawer or switch to bottom tabs
+- Pages 3+ levels deep should show breadcrumbs for orientation
+- The app logo must always link to the root route
+- Navigation items must be semantic links for right-click/open-in-new-tab support and accessibility
+
+### L. Responsive & Touch UX
+
+**What to check:**
+- Tap targets smaller than 44×44px on interactive elements
+- Hover-only interactions with no touch alternative (e.g. tooltip content, hover-reveal menus)
+- Content overflow or horizontal scroll on mobile viewports
+- Fixed-position elements (modals, floating buttons) that overlap or become unreachable on small screens
+- Text inputs that cause layout shifts when the mobile keyboard opens
+
+**Expected pattern:**
+- All tappable elements must meet minimum 44×44px (Apple HIG) / 48×48dp (Material) — if the visual element is smaller, add padding to expand the hit area
+- Hover-triggered content must also be accessible via tap/click or long-press
+- Test layouts at 320px, 375px, and 768px breakpoints — no horizontal overflow
+- Modals on mobile should use full-screen or bottom-sheet presentation
+- Use `dvh` (dynamic viewport height) units instead of `vh` to account for mobile browser chrome
+
+### M. Search UX
+
+**What to check:**
+- Search input that fires a request on every keystroke with no debounce
+- No loading indicator while search results are being fetched
+- No empty state for "no results found"
+- Search input that cannot be cleared with a single action (missing ✕ button)
+- No keyboard shortcut to focus search (e.g. `/` or `Cmd+K`)
+
+**Expected pattern:**
+- Debounce search input by at least 300ms before triggering a request
+- Show a spinner inside or adjacent to the search input while loading
+- Empty result state should say "No results for '[query]'" and suggest broadening the search
+- Include a clear button (✕) inside the input when it has a value
+- Consider supporting `Cmd+K` / `Ctrl+K` or `/` to focus the search field
+
+### N. File Upload UX
+
+**What to check:**
+- File input with no drag-and-drop support
+- No progress indicator during upload
+- No file type or size validation before upload starts
+- No preview for image uploads
+- No way to remove a selected file before submitting
+
+**Expected pattern:**
+- Provide a drop zone with visual feedback (border highlight on drag-over)
+- Show upload progress (percentage bar or spinner)
+- Validate file type and size client-side before uploading; show an inline error immediately if invalid
+- For image files, show a thumbnail preview after selection
+- Allow removing or replacing a selected file before final submission
+
+### O. Permission & Authorization UI
+
+**What to check:**
+- Pages that flash restricted content before redirecting unauthorized users
+- No visible feedback when a user attempts an action they lack permission for
+- Admin-only buttons rendered but non-functional for regular users (silent failures)
+- Middleware redirects with no explanation — user sees a sudden jump with no context
+
+**Expected pattern:**
+- Unauthorized users should never see restricted content flash — use server-side checks or a loading gate
+- If a user lacks permission, show a clear message (e.g. "You don't have access. Contact your admin.")
+- Actions the user cannot perform should either be hidden entirely or shown as disabled with a tooltip explaining why
+- On redirect for authorization failure, land the user on a meaningful page (e.g. a 403 page with next steps), not the homepage with no explanation
+
+### P. Data Table UX
+
+**What to check:**
+- Tables with no sorting on columns that are naturally sortable
+- No loading state during data refetch (e.g. when changing sort or filter)
+- Table content that overflows on mobile without horizontal scroll or responsive fallback
+- Bulk selection (checkbox column) without a "Select All" / "Deselect All" toggle
+- Pagination controls that don't indicate total count or current position
+
+**Expected pattern:**
+- Sortable columns should show a sort indicator (arrow icon) and toggle asc/desc on click
+- Wrap table refetch in a loading state — dim the table body or show a subtle overlay spinner
+- On mobile, either allow horizontal scroll with a visible scrollbar hint, or switch to a card-based layout
+- Bulk selection should include "Select all on this page" and optionally "Select all N items"
+- Pagination must show: current page, total pages or total items, and per-page size selector
+
+### Q. Scroll & State Persistence
+
+**What to check:**
+- Scroll position lost when navigating back (e.g. list → detail → back resets to top)
+- Tab selection, filter values, or sort order that reset on page navigation
+- Infinite scroll with no "Back to top" affordance
+- Infinite scroll that loses position on page refresh
+
+**Expected pattern:**
+- Preserve scroll position on back navigation — verify that the routing approach supports this
+- Persist filter, sort, and tab state in URL search params so it survives refresh and is shareable
+- Infinite scroll pages should show a floating "Back to top" button after scrolling 2+ viewport heights
+- Consider URL-based pagination (e.g. `?page=3`) even in infinite scroll as a fallback anchor
+
+---
+
+## Confirmation Patterns by Action Type
 
 Use this table to verify the correct confirmation pattern is used:
 
@@ -226,174 +376,13 @@ Use this table to verify the correct confirmation pattern is used:
 | Delete single item | Modal with item name | "Delete user 'John Doe'?" |
 | Delete multiple items | Modal with count | "Delete 3 selected projects?" |
 | Irreversible action | Modal + type-to-confirm | "Type 'DELETE' to confirm" |
-| Logout / disconnect | Popover confirmation | "Sign out of all devices?" |
+| Logout / disconnect | Dropdown menu item (not top-level button) | Avatar → Menu → "Sign Out" |
 | Discard unsaved changes | Modal on navigation | "You have unsaved changes. Discard?" |
 | Bulk operation | Modal with summary | "Archive 12 messages?" |
 | Payment / charge | Modal with amount | "Charge $49.99 to card ending 4242?" |
+| Toggle dangerous setting | Inline confirm with undo window | Switch flips → "Undo" toast for 5s |
 
 ---
-
-## Reference Patterns
-
-> These are **examples for the report recommendations**, not code to be applied.
-
-### Pattern: Confirmation Modal for Delete
-
-```tsx
-import {
-  Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
-  Button, useDisclosure,
-} from "@heroui/react";
-
-function DeleteButton({ itemName, onConfirm }: { itemName: string; onConfirm: () => Promise<void> }) {
-  const { isOpen, onOpen, onOpenChange } = useDisclosure();
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const handleConfirm = async (onClose: () => void) => {
-    setIsDeleting(true);
-    try {
-      await onConfirm();
-      toast.success(`${itemName} deleted`);
-      onClose();
-    } catch {
-      toast.error(`Failed to delete ${itemName}`);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  return (
-    <>
-      <Button color="danger" variant="light" onPress={onOpen}>Delete</Button>
-      <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
-        <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader>Delete {itemName}?</ModalHeader>
-              <ModalBody><p>This action cannot be undone.</p></ModalBody>
-              <ModalFooter>
-                <Button variant="light" onPress={onClose} autoFocus>Cancel</Button>
-                <Button color="danger" onPress={() => handleConfirm(onClose)} isLoading={isDeleting}>Delete</Button>
-              </ModalFooter>
-            </>
-          )}
-        </ModalContent>
-      </Modal>
-    </>
-  );
-}
-```
-
-### Pattern: Submit Button with Loading State
-
-```tsx
-function SubmitButton({ children = "Save" }: { children?: string }) {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" color="primary" isLoading={pending} isDisabled={pending}>
-      {children}
-    </Button>
-  );
-}
-```
-
-### Pattern: Toast Provider Setup (sonner)
-
-```tsx
-// app/providers.tsx
-import { Toaster } from "sonner";
-
-export function Providers({ children }) {
-  return (
-    <HeroUIProvider>
-      <NextThemesProvider>
-        {children}
-        <Toaster richColors position="bottom-right" />
-      </NextThemesProvider>
-    </HeroUIProvider>
-  );
-}
-```
-
-### Pattern: Empty State Component
-
-```tsx
-function EmptyState({
-  icon: Icon, title, description, action,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-  action?: { label: string; onPress: () => void };
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <Icon className="mb-4 h-12 w-12 text-default-300" />
-      <h3 className="text-lg font-semibold text-default-700">{title}</h3>
-      <p className="mt-1 text-sm text-default-400">{description}</p>
-      {action && (
-        <Button className="mt-4" color="primary" onPress={action.onPress}>{action.label}</Button>
-      )}
-    </div>
-  );
-}
-```
-
-### Pattern: Unsaved Changes Guard
-
-```tsx
-"use client";
-import { useEffect } from "react";
-
-function useUnsavedChangesGuard(isDirty: boolean) {
-  useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => {
-      if (isDirty) { e.preventDefault(); e.returnValue = ""; }
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [isDirty]);
-}
-```
-
-### Pattern: Type-to-Confirm for High-Risk Actions
-
-```tsx
-function TypeToConfirmModal({
-  isOpen, onOpenChange, confirmText = "DELETE", onConfirm, title, description,
-}: {
-  isOpen: boolean; onOpenChange: (open: boolean) => void;
-  confirmText?: string; onConfirm: () => Promise<void>;
-  title: string; description: string;
-}) {
-  const [input, setInput] = useState("");
-  return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
-      <ModalContent>
-        {(onClose) => (
-          <>
-            <ModalHeader>{title}</ModalHeader>
-            <ModalBody>
-              <p>{description}</p>
-              <p className="mt-2 text-sm text-default-500">
-                Type <code className="font-bold text-danger">{confirmText}</code> to confirm:
-              </p>
-              <Input value={input} onValueChange={setInput} placeholder={confirmText} variant="bordered" />
-            </ModalBody>
-            <ModalFooter>
-              <Button variant="light" onPress={onClose}>Cancel</Button>
-              <Button color="danger" isDisabled={input !== confirmText}
-                onPress={async () => { await onConfirm(); onClose(); }}>
-                Confirm
-              </Button>
-            </ModalFooter>
-          </>
-        )}
-      </ModalContent>
-    </Modal>
-  );
-}
-```
 
 ## Composability
 
@@ -401,7 +390,7 @@ This skill layers on top of existing projects as a review step:
 
 ```
 qruiq-create-app          → Project skeleton
-    + qruiq-ux-polish      → Review interaction patterns (report only)
+    + qruiq-review-ux      → Review interaction patterns (report only)
     + qruiq-google-auth    → Google OAuth login
     + qruiq-github-ci      → CI/CD pipeline
 ```
@@ -410,6 +399,5 @@ qruiq-create-app          → Project skeleton
 
 - **NEVER edit, write, or create any file** — this is a review-only skill
 - Output a structured report with file paths, line numbers, and severity
-- Reference patterns are provided as recommendations, not applied automatically
 - If no issues are found for a category, skip it in the report
 - Be specific: cite exact file + line, not vague "some buttons lack loading states"
