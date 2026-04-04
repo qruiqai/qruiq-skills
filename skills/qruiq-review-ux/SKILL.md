@@ -41,12 +41,12 @@ Collect before execution:
 
 ### 1. Determine scan scope (incremental vs full)
 
-The skill uses a file-level cache at `.review-cache/` in the project root. Each scanned file produces a per-file result stored as `.review-cache/<relative-path>.json`.
+The skill uses a file-level cache at `.qruiq-review-ux/` in the project root. Each scanned file produces a per-file result stored as `.qruiq-review-ux/<relative-path>.json`.
 
 **Decision logic:**
 
 ```
-if .review-cache/ does NOT exist:
+if .qruiq-review-ux/ does NOT exist:
   → Full scan: scan every .tsx/.ts file in SCOPE
 else:
   → Incremental scan: only scan files changed since last scan
@@ -55,16 +55,16 @@ else:
 **Step 1a — Check for cache directory:**
 
 ```bash
-ls .review-cache/ 2>/dev/null
+ls .qruiq-review-ux/ 2>/dev/null
 ```
 
 **Step 1b — If cache exists, get changed files only:**
 
-Use git diff to find files changed since the last scan timestamp stored in `.review-cache/_meta.json`:
+Use git diff to find files changed since the last scan timestamp stored in `.qruiq-review-ux/_meta.json`:
 
 ```bash
 # Read last scan commit from meta
-cat .review-cache/_meta.json   # { "last_commit": "<sha>", "last_scan": "<iso-date>" }
+cat .qruiq-review-ux/_meta.json   # { "last_commit": "<sha>", "last_scan": "<iso-date>" }
 
 # Get changed .tsx/.ts files since that commit
 git diff --name-only <last_commit> HEAD -- '*.tsx' '*.ts'
@@ -109,7 +109,7 @@ For each file in the scan list, **Read the entire file** and audit it against AL
 - Design: prop-based composition instead of dot notation compound components
 - Design: inconsistent sizes, hardcoded colors, missing className, lost type safety, copy-pasted components instead of wrappers
 
-**Per-file result format** (written to `.review-cache/<relative-path>.json`):
+**Per-file result format** (written to `.qruiq-review-ux/<relative-path>.json`):
 
 ```json
 {
@@ -132,7 +132,7 @@ If a file has zero issues, still write the cache entry with an empty `issues` ar
 
 ### 3. Update cache metadata
 
-After all files are scanned, write/update `.review-cache/_meta.json`:
+After all files are scanned, write/update `.qruiq-review-ux/_meta.json`:
 
 ```json
 {
@@ -143,7 +143,7 @@ After all files are scanned, write/update `.review-cache/_meta.json`:
 }
 ```
 
-**Important:** Add `.review-cache/` to `.gitignore` if not already present.
+**Important:** Add `.qruiq-review-ux/` to `.gitignore` if not already present.
 
 ### 4. Merge results and output the report
 
@@ -603,11 +603,11 @@ qruiq-create-app          → Project skeleton
 
 ## Rules
 
-- **NEVER edit source code files** — this is a review-only skill. The only files written are inside `.review-cache/`
-- **Write** and **Bash** tools are ONLY for managing `.review-cache/` and `.gitignore` — never for modifying project source
+- **NEVER edit source code files** — this is a review-only skill. The only files written are inside `.qruiq-review-ux/`
+- **Write** and **Bash** tools are ONLY for managing `.qruiq-review-ux/` and `.gitignore` — never for modifying project source
 - Output a structured report with file paths, line numbers, and severity
 - If no issues are found for a category, skip it in the report
 - Be specific: cite exact file + line, not vague "some buttons lack loading states"
 - On incremental scans, merge cached results from unchanged files with fresh results from changed files
 - If a previously cached file has been deleted, remove its cache entry
-- Always ensure `.review-cache/` is in `.gitignore`
+- Always ensure `.qruiq-review-ux/` is in `.gitignore`
