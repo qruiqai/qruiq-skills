@@ -109,16 +109,28 @@ git push -u origin main
 
 ### 6. Configure GitHub Actions Secrets
 
+**First, check if the org already has these secrets configured. Skip any that already exist at org level (the repo will inherit them automatically). Only set the missing ones at the repo level — and only ask the user for values that are still missing after this check.**
+
 ```bash
-gh secret set TCR_USERNAME --repo <GITHUB_ORG>/<APP_NAME> --body "<TCR_USERNAME>"
-gh secret set TCR_PASSWORD --repo <GITHUB_ORG>/<APP_NAME> --body "<TCR_PASSWORD>"
-gh secret set KUBE_CONFIG_DEV --repo <GITHUB_ORG>/<APP_NAME> --body "<KUBE_CONFIG_DEV>"
+# List org-level secrets (requires admin:org scope; if it errors with 403, fall back to repo-level for all)
+gh secret list --org <GITHUB_ORG> 2>/dev/null
 ```
+
+For each of `TCR_USERNAME`, `TCR_PASSWORD`, `KUBE_CONFIG_DEV`, `KUBE_CONFIG_PROD`:
+- If present in org-level list **and** visibility covers this repo (`all`, `private`, or `selected` with this repo included) → skip, the repo inherits it.
+- If missing → ask the user for the value (unless already auto-detected) and set at repo level:
+
+```bash
+gh secret set <SECRET_NAME> --repo <GITHUB_ORG>/<APP_NAME> --body "<VALUE>"
+```
+
+If `gh secret list --org` returns 403 (token lacks `admin:org` read), tell the user: "Can't read org secrets — they may already be configured at org level. Skip repo secrets and rely on org inheritance, or provide values to set at repo level?" before falling back.
 
 ### 7. Verify secrets
 
 ```bash
-gh secret list --repo <GITHUB_ORG>/<APP_NAME>
+gh secret list --repo <GITHUB_ORG>/<APP_NAME>      # repo-level
+gh secret list --org <GITHUB_ORG> 2>/dev/null      # org-level (inherited)
 ```
 
 ### 8. Trigger first dev deploy
