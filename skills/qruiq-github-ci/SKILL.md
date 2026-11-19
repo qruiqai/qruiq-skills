@@ -2,7 +2,8 @@
 name: qruiq-github-ci
 description: |
   Add GitHub Actions CI/CD pipeline that builds Docker images, pushes to Tencent TCR, and deploys to TKE.
-  Tag-triggered: dev-tag/v* for dev, v* for production. PR triggers lint+typecheck only.
+  Tag-triggered: dev-tag/v* for dev, v* for production. PR triggers lint+typecheck only,
+  on GitHub's runner or, with one repository variable, on the organisation's own runner pool.
   Use when asked to "add CI/CD", "setup GitHub Actions", "auto deploy", or "add pipeline".
 allowed-tools:
   - Bash
@@ -145,6 +146,27 @@ Wait ~30s then check:
 gh run list --repo <GITHUB_ORG>/<APP_NAME> --limit 5
 ```
 
+### 9. Optional: run the pull request tests on our own runner pool
+
+Only for a **private repository of the `qruiqai` organisation**: the pool is registered with that organisation and serves its private repositories. Anywhere else, skip this step; the `test` job then runs on GitHub's runner.
+
+The template's `test` job reads the repository variable `CI_POOL_RUNNER` on pull requests. Nothing is set in a new repository. To send the job to the pool:
+
+```bash
+gh variable set CI_POOL_RUNNER --repo <GITHUB_ORG>/<APP_NAME> --body qruiq-pool-linux-6g
+```
+
+Then open a pull request and see that `Run Tests` passes there. The job gets a fresh arm64 Linux VM (4 cores, 6 GiB), which is destroyed afterwards. What to know:
+
+- The pool's machines are arm64 and faster than GitHub's runners. A test that assumes x86-64, or that relies on a few milliseconds passing between two steps, can fail there. When the suite grows beyond lint and the type check, let the whole of it pass on the pool once before relying on it (`qruiqai/ci-runners`, `docs/onboarding.md`).
+- While no host of the pool takes jobs, a job that names it waits instead of failing. To go back to GitHub's runner, delete the variable; no workflow change is needed:
+
+```bash
+gh variable delete CI_POOL_RUNNER --repo <GITHUB_ORG>/<APP_NAME>
+```
+
+- `build` and the deploy jobs are never sent to the pool: they carry the registry's and the clusters' secrets, and the image is built for `linux/amd64`. If `test` is later made to run on tag pushes too, the template's `runs-on` keeps those runs on GitHub's runner.
+
 ## Tag conventions
 
 | Tag format | Target environment |
@@ -158,7 +180,7 @@ gh run list --repo <GITHUB_ORG>/<APP_NAME> --limit 5
 ```
 push tag (v* / dev-tag/v*)
     │
-    ├─ test (PR only): lint + tsc --noEmit
+    ├─ test (PR only): lint + tsc --noEmit   (GitHub's runner, or our pool: step 9)
     ├─ build: Docker image → push to TCR
     │
     ├─ deploy-dev        (tag: dev-tag/v*)
@@ -172,6 +194,7 @@ push tag (v* / dev-tag/v*)
 - `prisma db push` for dev (fast schema sync), `prisma migrate deploy` for prod (strict migration)
 - `cache-from: type=gha` leverages GitHub Actions cache for faster Docker builds
 - `platforms: linux/amd64` — TKE nodes are x86_64
+- `test` has `timeout-minutes: 15` and uses `setup-node`'s yarn cache on GitHub's runners only (`runner.environment == 'github-hosted'`); both are for the runner pool of step 9 and change nothing on GitHub's runner
 
 ## GitHub Secrets required
 
