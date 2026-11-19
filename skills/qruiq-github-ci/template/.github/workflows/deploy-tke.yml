@@ -24,16 +24,30 @@ env:
   IMAGE_NAME: __IMAGE_NAME__
 
 jobs:
+  # Where it runs. On a pull request this job runs on the organisation's own
+  # on-demand runner pool when the repository variable CI_POOL_RUNNER names one of
+  # its labels (qruiq-pool-linux-6g: a fresh arm64 Linux VM with 4 cores and 6 GiB
+  # for each job, destroyed afterwards; the pool is qruiqai/ci-runners). The
+  # variable is not set in a new repository, and then the job runs on GitHub's
+  # runner. The event is named so that the job stays on GitHub's runner if it is
+  # later made to run on tag pushes or manual runs too: a release never waits for
+  # the pool. build and the deploy jobs always run on GitHub's runners: they carry
+  # secrets, and the image is built for linux/amd64.
   test:
     name: Run Tests
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && vars.CI_POOL_RUNNER || 'ubuntu-latest' }}
     if: github.event_name == 'pull_request'
+    # The limit is for a job that hangs: on the pool it would otherwise hold a
+    # place other repositories wait for.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      # GitHub's cache of yarn's downloads is for GitHub's runners. A host of the
+      # pool keeps the packages itself.
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'yarn'
+          cache: ${{ runner.environment == 'github-hosted' && 'yarn' || '' }}
       - run: yarn install --frozen-lockfile
       - run: yarn lint
       - run: npx tsc --noEmit
